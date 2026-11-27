@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lichtausbeute-Rechner</title>
+<style>
+/* VOICE: sachlich, wie eine Fachbuch-Tafel; ruhig, präzise
+   IDEA: Datenblatt einer Leuchte, das live mitrechnet
+   PICTURE: großes Ergebnis + Verlustkette als Balken + Kurve über der Farbtemperatur
+   COLOUR and TYPE: weiß/tiefes Blau #1F4E79, Verluste koralle #B5502A; Arial wie im Buch
+   LAYOUT: Titel, Farbtemperatur-Chips, Ergebnis, Regler, Kette, Diagramm; einspaltig am Handy */
+:root{color-scheme:light dark;--bg:light-dark(#ffffff,#10161d);--card:light-dark(#f3f5f7,#18212b);--ink:light-dark(#15191e,#eef1f4);--mute:light-dark(#5b6470,#9aa5b1);--line:light-dark(#dde2e7,#2a3541);--acc:light-dark(#1F4E79,#7fb3e6);--loss:light-dark(#B5502A,#ec8a63);--lossbg:light-dark(#f6d5c6,#4a2a1e);--accbg:light-dark(#d6e4f2,#1d3550)}
+:root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
+*{box-sizing:border-box;min-width:0}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 Arial,"Helvetica Neue",Helvetica,sans-serif;overflow-x:clip}
+.wrap{max-width:1040px;margin:0 auto;padding:clamp(20px,4vw,48px) max(4vw,16px) 40px}
+h1{font-size:clamp(28px,5vw,42px);line-height:1.08;margin:0 0 10px;text-wrap:balance;font-weight:700}
+.lead{color:var(--mute);margin:0 0 24px;max-width:62ch}
+.grid{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);gap:24px;align-items:start}
+@media(max-width:760px){.grid{grid-template-columns:minmax(0,1fr)}}
+.card{background:var(--card);border-radius:14px;padding:clamp(16px,3vw,24px)}
+.lbl{font-size:14px;color:var(--mute);margin:0 0 8px;display:flex;justify-content:space-between;gap:8px}
+.lbl b{color:var(--ink);font-weight:700;font-variant-numeric:tabular-nums}
+.chips{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-bottom:22px}
+.chip{appearance:none;border:1.5px solid var(--line);background:var(--bg);color:var(--ink);border-radius:10px;min-height:48px;font:inherit;font-size:15px;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:6px 2px}
+.chip i{display:block;width:26px;height:6px;border-radius:3px}
+.chip[aria-pressed=true]{border-color:var(--acc);box-shadow:0 0 0 1.5px var(--acc) inset;font-weight:700}
+.chip:focus-visible,input:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
+.row{margin-bottom:20px}
+input[type=range]{width:100%;height:44px;accent-color:var(--acc);margin:0}
+.num{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.num input{font:inherit;font-size:17px;width:120px;min-height:46px;padding:8px 12px;border-radius:10px;border:1.5px solid var(--line);background:var(--bg);color:var(--ink)}
+.num span{color:var(--mute);font-size:14px}
+.err{color:var(--loss);font-size:14px;min-height:20px;margin-top:4px}
+.big{font-size:clamp(44px,9vw,68px);line-height:1;font-weight:700;color:var(--acc);font-variant-numeric:tabular-nums;white-space:nowrap}
+.big small{font-size:.38em;font-weight:400;color:var(--mute);margin-left:6px}
+.res{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:18px}
+.res div{background:var(--bg);border-radius:10px;padding:12px 14px}
+.res p{margin:0;font-size:13px;color:var(--mute)}
+.res strong{display:block;font-size:22px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.chain{margin-top:22px}
+.bar{display:grid;grid-template-columns:7.2em minmax(0,1fr) 4.6em;align-items:center;gap:10px;margin:7px 0;font-size:14px}
+.bar .t{height:22px;border-radius:5px;background:var(--line);overflow:hidden;display:flex}
+.bar .f{height:100%;background:var(--acc);transition:width .25s}
+.bar .l{height:100%;background:var(--lossbg);transition:width .25s}
+.bar .v{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.fig{position:relative;height:300px;margin-top:8px}.fig>svg{position:absolute;inset:0;width:100%;height:100%}
+.leg{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:13px;color:var(--mute);margin-top:8px}
+.leg span{display:flex;align-items:center;gap:6px}
+.form{font-size:15px;margin:18px 0 0;padding:12px 14px;border-left:3px solid var(--acc);background:var(--bg);border-radius:0}
+.note{font-size:13px;color:var(--mute);margin-top:22px;max-width:70ch}
+h2{font-size:18px;margin:0 0 4px}
+@media(prefers-reduced-motion:reduce){.bar .f,.bar .l{transition:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>Von der Modul- zur Leuchten&shy;lichtausbeute</h1>
+<p class="lead">Wie viel Leistung braucht eine Leuchte wirklich, wenn man Treiber- und Leuchtenverluste mitrechnet? Farbtemperatur wählen, Wirkungsgrade einstellen.</p>
+
+<div class="grid">
+<section class="card" aria-label="Eingaben">
+  <p class="lbl">Farbtemperatur</p>
+  <div class="chips" id="chips" role="group" aria-label="Farbtemperatur"></div>
+
+  <div class="row">
+    <label class="lbl" for="bg"><span>Treiberwirkungsgrad η<sub>BG</sub></span> <b id="bgv">0,90</b></label>
+    <input type="range" id="bg" min="0.80" max="0.97" step="0.01" value="0.90">
+  </div>
+  <div class="row">
+    <label class="lbl" for="lb"><span>Leuchtenbetriebswirkungsgrad η<sub>LB</sub></span> <b id="lbv">0,80</b></label>
+    <input type="range" id="lb" min="0.50" max="1.00" step="0.01" value="0.80">
+  </div>
+  <div class="row" style="margin-bottom:0">
+    <label class="lbl" for="pin"><span>Bisheriger Wert (gerechnet nur mit η<sub>v</sub>)</span></label>
+    <div class="num"><input type="text" inputmode="decimal" id="pin" value="5,0"><span>W/m², W/m²·100 lx oder kWh/(m²·a)</span></div>
+    <div class="err" id="err" aria-live="polite"></div>
+  </div>
+</section>
+
+<section class="card" aria-label="Ergebnis">
+  <p class="lbl">Wirksame Leuchtenlichtausbeute</p>
+  <div class="big" id="eff">–</div>
+  <div class="res">
+    <div><p>Faktor auf die Leistung</p><strong id="fac">–</strong><p id="pct"></p></div>
+    <div><p>Korrigierter Wert</p><strong id="cor">–</strong></div>
+  </div>
+  <div class="chain" aria-label="Verlustkette">
+    <div class="bar"><span>LED-Modul η<sub>v</sub></span><div class="t"><div class="f" id="b1"></div></div><span class="v" id="v1"></span></div>
+    <div class="bar"><span>nach Treiber</span><div class="t"><div class="f" id="b2"></div><div class="l" id="l2"></div></div><span class="v" id="v2"></span></div>
+    <div class="bar"><span>nach Leuchte</span><div class="t"><div class="f" id="b3"></div><div class="l" id="l3"></div></div><span class="v" id="v3"></span></div>
+  </div>
+  <p class="form">P = Φ<sub>L</sub> / (η<sub>v</sub> · η<sub>BG</sub> · η<sub>LB</sub>)</p>
+</section>
+</div>
+
+<section class="card" style="margin-top:24px" aria-label="Diagramm">
+  <h2>Lichtausbeute über der Farbtemperatur</h2>
+  <div class="leg">
+    <span><svg width="24" height="8" aria-hidden="true"><line x1="0" y1="4" x2="24" y2="4" stroke="var(--mute)" stroke-width="2" stroke-dasharray="5 3"/></svg>LED-Modul (Tabelle)</span>
+    <span><svg width="24" height="8" aria-hidden="true"><line x1="0" y1="4" x2="24" y2="4" stroke="var(--acc)" stroke-width="2.5"/></svg>wirksam, mit gewählten η</span>
+  </div>
+  <div class="fig"><svg id="ch" role="img" aria-label="Lichtausbeute des LED-Moduls und wirksame Leuchtenlichtausbeute über der Farbtemperatur"></svg></div>
+</section>
+
+<p class="note">Lichtausbeuten der LED-Module nach einer Studie, zusammengestellt für ein Fachbuch zur Lichtplanung. Zwischen den Stützstellen ist die Kurve linear verbunden. Die Wirkungsgrade sind Annahmen zum Ausprobieren und ersetzen keine Herstellerangaben.</p>
+</div>
+
+<script>
+{
+const D=[[2200,131],[2700,152],[3000,158],[3500,159],[4000,165],[5000,165],[5700,165],[6500,161]];
+const SW={2200:'#ff9b3d',2700:'#ffb35c',3000:'#ffc27a',3500:'#ffd29c',4000:'#ffe3c2',5000:'#f5f1ea',5700:'#e6ecf7',6500:'#d2def5'};
+const fmt=(v,d)=>v.toLocaleString('de-DE',{minimumFractionDigits:d,maximumFractionDigits:d});
+let sel=4000;
+const chips=document.getElementById('chips');
+chips.innerHTML=D.map(([k])=>`<button type="button" class="chip" data-k="${k}" aria-pressed="${k===sel}"><i style="background:${SW[k]};border:1px solid rgba(0,0,0,.12)"></i>${k.toLocaleString('de-DE')} K</button>`).join('');
+chips.addEventListener('click',e=>{const b=e.target.closest('.chip');if(!b)return;sel=+b.dataset.k;chips.querySelectorAll('.chip').forEach(c=>c.setAttribute('aria-pressed',String(+c.dataset.k===sel)));upd();});
+const $=id=>document.getElementById(id);
+const svg=$('ch');
+function draw(){
+  const W=svg.clientWidth,H=svg.clientHeight;if(!W||!H)return;
+  const bg=+$('bg').value,lb=+$('lb').value,narrow=W<520;
+  const m={l:narrow?38:48,r:14,t:22,b:narrow?34:40};
+  const x0=2000,x1=6800,y0=40,y1=180;
+  const X=v=>m.l+(v-x0)/(x1-x0)*(W-m.l-m.r),Y=v=>H-m.b-(v-y0)/(y1-y0)*(H-m.t-m.b);
+  let s='';
+  for(let v=40;v<=180;v+=20){s+=`<line x1="${m.l}" x2="${W-m.r}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--line)"/><text x="${m.l-6}" y="${Y(v)+4}" text-anchor="end" font-size="12" fill="var(--mute)">${v}</text>`;}
+  const xt=narrow?[2000,4000,6000]:[2000,3000,4000,5000,6000];
+  xt.forEach(v=>{s+=`<text x="${X(v)}" y="${H-m.b+18}" text-anchor="middle" font-size="12" fill="var(--mute)">${v.toLocaleString('de-DE')}</text>`;});
+  s+=`<text x="${W-m.r}" y="${H-4}" text-anchor="end" font-size="12" fill="var(--mute)">Farbtemperatur in K</text>`;
+  s+=`<text x="${m.l+6}" y="${m.t-8}" font-size="12" fill="var(--mute)" dy="0">lm/W</text>`;
+  const p1=D.map(([k,v])=>`${X(k)},${Y(v)}`).join(' ');
+  const p2=D.map(([k,v])=>`${X(k)},${Y(v*bg*lb)}`).join(' ');
+  s+=`<polyline points="${p1}" fill="none" stroke="var(--mute)" stroke-width="2" stroke-dasharray="5 3"/>`;
+  s+=`<polyline points="${p2}" fill="none" stroke="var(--acc)" stroke-width="2.5" stroke-linejoin="round"/>`;
+  D.forEach(([k,v])=>{const on=k===sel;s+=`<circle cx="${X(k)}" cy="${Y(v*bg*lb)}" r="${on?6:3.5}" fill="${on?'var(--acc)':'var(--card)'}" stroke="var(--acc)" stroke-width="2"/>`;});
+  const sv=D.find(d=>d[0]===sel)[1]*bg*lb;
+  const tx=Math.min(Math.max(X(sel),m.l+40),W-m.r-40);
+  s+=`<text x="${tx}" y="${Y(sv)+24}" text-anchor="middle" font-size="13" font-weight="700" fill="var(--acc)">${fmt(sv,1)}</text>`;
+  svg.innerHTML=s;
+}
+const ro=new ResizeObserver(draw);ro.observe(svg);
+function upd(){
+  const ev=D.find(d=>d[0]===sel)[1],bg=+$('bg').value,lb=+$('lb').value,fac=1/(bg*lb);
+  $('bgv').textContent=fmt(bg,2);$('lbv').textContent=fmt(lb,2);
+  $('eff').innerHTML=`${fmt(ev*bg*lb,1)}<small>lm/W</small>`;
+  $('fac').textContent='× '+fmt(fac,2);$('pct').textContent='+'+fmt((fac-1)*100,0)+' % Leistung';
+  const raw=$('pin').value.trim().replace(',','.'),p=parseFloat(raw);
+  if(raw===''||isNaN(p)||p<0||!/^\d*\.?\d*$/.test(raw)){$('err').textContent='Bitte eine Zahl ≥ 0 eingeben, z. B. 5,0';$('cor').textContent='–';}
+  else{$('err').textContent='';$('cor').textContent=fmt(p*fac,2);}
+  const mx=170,w1=ev/mx*100,w2=ev*bg/mx*100,w3=ev*bg*lb/mx*100;
+  $('b1').style.width=w1+'%';$('v1').textContent=fmt(ev,1);
+  $('b2').style.width=w2+'%';$('l2').style.width=(w1-w2)+'%';$('v2').textContent=fmt(ev*bg,1);
+  $('b3').style.width=w3+'%';$('l3').style.width=(w1-w3)+'%';$('v3').textContent=fmt(ev*bg*lb,1);
+  draw();
+}
+['bg','lb','pin'].forEach(id=>$(id).addEventListener('input',upd));
+upd();
+}
+</script>
+</body>
+</html>
