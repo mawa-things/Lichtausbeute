@@ -40,6 +40,7 @@ input[type=range]{width:100%;height:44px;accent-color:var(--acc);margin:0}
 .res p{margin:0;font-size:13px;color:var(--mute)}
 .res strong{display:block;font-size:22px;font-variant-numeric:tabular-nums;white-space:nowrap}
 .chain{margin-top:22px}
+.facline{margin:12px 0 0;font-size:15px}.facline b{font-variant-numeric:tabular-nums}.facline span{display:block;font-size:13px;color:var(--mute)}
 .bar{display:grid;grid-template-columns:7.2em minmax(0,1fr) 4.6em;align-items:center;gap:10px;margin:7px 0;font-size:14px}
 .bar .t{height:22px;border-radius:5px;background:var(--line);overflow:hidden;display:flex}
 .bar .f{height:100%;background:var(--acc);transition:width .25s}
@@ -73,8 +74,8 @@ h2{font-size:18px;margin:0 0 4px}
     <input type="range" id="lb" min="0.50" max="1.00" step="0.01" value="0.80">
   </div>
   <div class="row" style="margin-bottom:0">
-    <label class="lbl" for="pin"><span>Bisheriger Wert (gerechnet nur mit η<sub>v</sub>)</span></label>
-    <div class="num"><input type="text" inputmode="decimal" id="pin" value="5,0"><span>W/m², W/m²·100 lx oder kWh/(m²·a)</span></div>
+    <label class="lbl" for="pin"><span>Lichtstrom im Raum Φ<sub>L</sub> je m² (aus der Simulation)</span></label>
+    <div class="num"><input type="text" inputmode="decimal" id="pin" value="500"><span>lm/m²</span></div>
     <div class="err" id="err" aria-live="polite"></div>
   </div>
 </section>
@@ -82,9 +83,10 @@ h2{font-size:18px;margin:0 0 4px}
 <section class="card" aria-label="Ergebnis">
   <p class="lbl">Wirksame Leuchtenlichtausbeute</p>
   <div class="big" id="eff">–</div>
+  <p class="facline" id="fac">–</p>
   <div class="res">
-    <div><p>Faktor auf die Leistung</p><strong id="fac">–</strong><p id="pct"></p></div>
-    <div><p>Korrigierter Wert</p><strong id="cor">–</strong></div>
+    <div><p>Leistung bisher (nur η<sub>v</sub>)</p><strong id="old">–</strong></div>
+    <div><p>Leistung korrigiert</p><strong id="cor" style="color:var(--acc)">–</strong></div>
   </div>
   <div class="chain" aria-label="Verlustkette">
     <div class="bar"><span>LED-Modul η<sub>v</sub></span><div class="t"><div class="f" id="b1"></div></div><span class="v" id="v1"></span></div>
@@ -109,7 +111,7 @@ h2{font-size:18px;margin:0 0 4px}
 
 <script>
 {
-const D=[[2200,131],[2700,152],[3000,158],[3500,159],[4000,165],[5000,165],[5700,165],[6500,161]];
+const D=[[2200,131.1],[2700,151.9],[3000,157.3],[3500,161.3],[4000,163.3],[5000,166.5],[5700,165.9],[6500,163.6]];
 const SW={2200:'#ff9b3d',2700:'#ffb35c',3000:'#ffc27a',3500:'#ffd29c',4000:'#ffe3c2',5000:'#f5f1ea',5700:'#e6ecf7',6500:'#d2def5'};
 const fmt=(v,d)=>v.toLocaleString('de-DE',{minimumFractionDigits:d,maximumFractionDigits:d});
 let sel=4000;
@@ -145,10 +147,10 @@ function upd(){
   const ev=D.find(d=>d[0]===sel)[1],bg=+$('bg').value,lb=+$('lb').value,fac=1/(bg*lb);
   $('bgv').textContent=fmt(bg,2);$('lbv').textContent=fmt(lb,2);
   $('eff').innerHTML=`${fmt(ev*bg*lb,1)}<small>lm/W</small>`;
-  $('fac').textContent='× '+fmt(fac,2);$('pct').textContent='+'+fmt((fac-1)*100,0)+' % Leistung';
+  $('fac').innerHTML=`Faktor auf die Leistung: <b>× ${fmt(fac,2)}</b> (+${fmt((fac-1)*100,0)} %)<span>Der Faktor hängt nur von η<sub>BG</sub> und η<sub>LB</sub> ab, nicht von der Farbtemperatur.</span>`;
   const raw=$('pin').value.trim().replace(',','.'),p=parseFloat(raw);
-  if(raw===''||isNaN(p)||p<0||!/^\d*\.?\d*$/.test(raw)){$('err').textContent='Bitte eine Zahl ≥ 0 eingeben, z. B. 5,0';$('cor').textContent='–';}
-  else{$('err').textContent='';$('cor').textContent=fmt(p*fac,2);}
+  if(raw===''||isNaN(p)||p<0||!/^\d*\.?\d*$/.test(raw)){$('err').textContent='Bitte eine Zahl ≥ 0 eingeben, z. B. 500';$('old').textContent='–';$('cor').textContent='–';}
+  else{$('err').textContent='';$('old').textContent=fmt(p/ev,2)+' W/m²';$('cor').textContent=fmt(p/(ev*bg*lb),2)+' W/m²';}
   const mx=170,w1=ev/mx*100,w2=ev*bg/mx*100,w3=ev*bg*lb/mx*100;
   $('b1').style.width=w1+'%';$('v1').textContent=fmt(ev,1);
   $('b2').style.width=w2+'%';$('l2').style.width=(w1-w2)+'%';$('v2').textContent=fmt(ev*bg,1);
